@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cheque Search Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 650px;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #006b54;
+            padding-bottom: 15px;
+        }
+        .header h1 {
+            color: #006b54;
+            margin: 0 0 10px 0;
+            font-size: 26px;
+            letter-spacing: 1px;
+        }
+        .header h2 {
+            color: #555;
+            margin: 0;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        input[type="text"]:focus {
+            border-color: #006b54;
+            outline: none;
+            box-shadow: 0 0 5px rgba(0, 107, 84, 0.3);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            flex: 1;
+            padding: 14px;
+            background-color: #006b54;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #004d3c; }
+        button:disabled { background-color: #999; cursor: not-allowed; }
+        .btn-scan { background-color: #0056b3; }
+        .btn-scan:hover { background-color: #004494; }
+        
+        .btn-update { 
+            background-color: #28a745; 
+            margin-top: 10px; 
+            padding: 10px; 
+            font-size: 14px; 
+        }
+        .btn-update:hover { background-color: #218838; }
+
+        .btn-download {
+            background-color: #ff9800;
+            margin-bottom: 20px;
+            display: none;
+            width: 100%;
+        }
+        .btn-download:hover { background-color: #e68a00; }
+        
+        #cameraContainer {
+            display: none;
+            margin-bottom: 20px;
+            border: 2px dashed #ccc;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            background-color: #fafafa;
+        }
+        video {
+            width: 100%;
+            max-height: 300px;
+            background-color: #000;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        #ocrStatus { font-weight: bold; color: #0056b3; margin-top: 10px; }
+
+        .system-status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .status-success { background-color: #d4edda; color: #155724; border-color: #c3e6cb; }
+        .status-error { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+        
+        .error { color: #dc3545; text-align: center; font-weight: bold; margin-top: 15px; }
+        
+        .results-container {
+            margin-top: 25px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            display: none;
+        }
+        .results-container h3 { margin-top: 0; color: #333; margin-bottom: 5px; }
+        .results-summary { font-weight: bold; color: #006b54; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ccc; font-size: 15px; }
+        .cheque-card {
+            background: #fff;
+            border: 1px solid #dcdcdc;
+            border-left: 5px solid #006b54;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .result-row { display: flex; margin-bottom: 8px; font-size: 15px; align-items: baseline; }
+        .result-label { font-weight: bold; color: #444; width: 140px; flex-shrink: 0; }
+        .result-value { color: #111; word-break: break-word; }
+        .badge { display: inline-block; padding: 5px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; text-transform: uppercase; }
+        .badge-delivered { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .badge-pending { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>CHEQUE SEARCH DASHBOARD</h1>
+        <h2>Sonali Bank PLC | Hatiya Thana Parishad Branch</h2>
+        <span style="font-size: 12px; color: #888;">Cloud-Synced Edition</span>
+    </div>
+
+    <!-- Auto-Load Status Panel -->
+    <div id="systemStatus" class="system-status">
+        ⏳ Connecting to GitHub to load database...
+    </div>
+
+    <button id="downloadBtn" class="btn-download" onclick="downloadCSV()">💾 Unsaved Changes - Download CSV Now!</button>
+
+    <div class="form-group">
+        <label for="searchAcc">Scan / Enter Account No:</label>
+        <input type="text" id="searchAcc" placeholder="e.g. 3828110000028" onkeypress="handleKeyPress(event)" disabled>
+    </div>
+
+    <!-- Camera UI Container -->
+    <div id="cameraContainer">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" style="display: none;"></canvas>
+        <button id="captureBtn" class="btn-scan">📸 Snap & Read Cheque</button>
+        <button id="cancelCamBtn" style="background-color: #dc3545; margin-top: 10px;">Cancel</button>
+        <div id="ocrStatus"></div>
+    </div>
+
+    <div class="btn-group">
+        <button id="startCamBtn" class="btn-scan" disabled>📷 Scan Cheque</button>
+        <button id="searchBtn" onclick="searchAccount()" disabled>🔍 Search</button>
+    </div>
+    
+    <div id="errorMsg" class="error"></div>
+
+    <div class="results-container" id="resultsContainer">
+        <h3>Search Results</h3>
+        <div id="resultsSummary" class="results-summary"></div>
+        <div id="resultsList"></div>
+    </div>
+</div>
+
+<script>
+    let databaseIndex = {}; 
+    let allCheques = []; 
+    let csvHeaders = ""; 
+
+    // --- Auto-Load CSV from GitHub ---
+    window.onload = async function() {
+        const statusDiv = document.getElementById('systemStatus');
+        
+        try {
+            // This looks for Master_Database.csv in the exact same folder as the HTML file
+            const response = await fetch('Master_Database.csv');
+            
+            if (!response.ok) {
+                throw new Error("File not found! Did you upload Master_Database.csv to GitHub?");
+            }
+
+            let text = await response.text();
+            text = text.replace(/^\uFEFF/, ''); // Remove BOM if present
+            
+            const lines = text.split(/\r?\n/);
+            const csvRegex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+            
+            csvHeaders = lines[0].trim(); 
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue; 
+                const cols = line.split(csvRegex);
+                
+                if (cols.length > 0) {
+                    const rawAcc = (cols[0] || '').replace(/[^a-zA-Z0-9]/g, '');
+                    if (rawAcc) {
+                        const cleanField = (str) => (str || '').replace(/(^"|"$)/g, '').trim();
+                        
+                        let chequeObj = {
+                            rawAccount: cols[0], 
+                            cleanAccount: rawAcc, 
+                            reference: cleanField(cols[1]),
+                            location: cleanField(cols[2]),
+                            name: cleanField(cols[3]),
+                            status: cleanField(cols[4])
+                        };
+
+                        allCheques.push(chequeObj);
+
+                        if (!databaseIndex[rawAcc]) databaseIndex[rawAcc] = [];
+                        databaseIndex[rawAcc].push(chequeObj);
+                    }
+                }
+            }
+
+            statusDiv.textContent = `✅ Cloud Database Loaded! (${allCheques.length.toLocaleString()} records)`;
+            statusDiv.className = "system-status status-success";
+            
+            // Enable all inputs automatically
+            document.getElementById('searchAcc').disabled = false;
+            document.getElementById('searchBtn').disabled = false;
+            document.getElementById('startCamBtn').disabled = false;
+            document.getElementById('searchAcc').focus();
+
+        } catch (err) {
+            statusDiv.textContent = `❌ Error: ${err.message}`;
+            statusDiv.className = "system-status status-error";
+        }
+    };
+
+    function handleKeyPress(e) {
+        if (e.key === 'Enter') searchAccount();
+    }
+
+    function searchAccount() {
+        const rawSearchInput = document.getElementById('searchAcc').value;
+        const searchAcc = rawSearchInput.replace(/[^a-zA-Z0-9]/g, ''); 
+        const errorDiv = document.getElementById('errorMsg');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsList = document.getElementById('resultsList');
+
+        errorDiv.textContent = '';
+        resultsContainer.style.display = 'none';
+        resultsList.innerHTML = '';
+
+        if (allCheques.length === 0) return;
+        if (!searchAcc) {
+            errorDiv.textContent = '⚠️ Please enter or scan an account number.';
+            return;
+        }
+
+        const resultsArray = databaseIndex[searchAcc];
+
+        if (resultsArray && resultsArray.length > 0) {
+            document.getElementById('resultsSummary').innerHTML = `Found <span style="font-size: 18px;">${resultsArray.length}</span> cheque(s) for Account: ${searchAcc}`;
+            let htmlContent = '';
+            
+            resultsArray.forEach((result, index) => {
+                const statusText = result.status || 'Pending / Unknown';
+                const isDelivered = statusText.toLowerCase().includes('deliver');
+                const badgeClass = isDelivered ? 'badge-delivered' : 'badge-pending';
+                
+                const actionButton = !isDelivered 
+                    ? `<button class="btn-update" onclick="markDelivered('${searchAcc}', ${index})">✓ Mark as Delivered</button>` 
+                    : '';
+
+                htmlContent += `
+                <div class="cheque-card">
+                    <div class="result-row" style="color: #006b54; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">
+                        <div class="result-label">Cheque Record:</div>
+                        <div class="result-value"><strong>#${index + 1}</strong></div>
+                    </div>
+                    <div class="result-row">
+                        <div class="result-label">Reference / SL No:</div>
+                        <div class="result-value"><strong>${result.reference || '-'}</strong></div>
+                    </div>
+                    <div class="result-row">
+                        <div class="result-label">File / Location:</div>
+                        <div class="result-value">${result.location || '-'}</div>
+                    </div>
+                    <!-- Customer Name Added Back Here -->
+                    <div class="result-row">
+                        <div class="result-label">Customer Name:</div>
+                        <div class="result-value">${result.name || '-'}</div>
+                    </div>
+                    <div class="result-row" style="margin-top: 8px;">
+                        <div class="result-label">Delivery Status:</div>
+                        <div class="result-value"><span class="badge ${badgeClass}">${statusText}</span></div>
+                    </div>
+                    ${actionButton}
+                </div>`;
+            });
+            resultsList.innerHTML = htmlContent;
+            resultsContainer.style.display = 'block';
+        } else {
+            errorDiv.textContent = `❌ Account number '${rawSearchInput}' not found.`;
+        }
+    }
+
+    function markDelivered(accountNumber, chequeIndex) {
+        // Change status in memory
+        databaseIndex[accountNumber][chequeIndex].status = "Delivered";
+        
+        // Refresh UI
+        document.getElementById('searchAcc').value = accountNumber;
+        searchAccount();
+        
+        // Show download button
+        document.getElementById('downloadBtn').style.display = 'block';
+    }
+
+    function formatCSVField(text) {
+        if (text === undefined || text === null) return '';
+        let str = String(text);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    }
+
+    function downloadCSV() {
+        if (allCheques.length === 0) return;
+
+        let csvContent = csvHeaders + "\n";
+        allCheques.forEach(row => {
+            let rowString = [
+                formatCSVField(row.rawAccount),
+                formatCSVField(row.reference),
+                formatCSVField(row.location),
+                formatCSVField(row.name), 
+                formatCSVField(row.status)
+            ].join(",");
+            csvContent += rowString + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        
+        // Force the downloaded file name to be exactly what GitHub expects
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Master_Database.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Hide the button again until the next edit
+        document.getElementById('downloadBtn').style.display = 'none';
+    }
+
+    // --- CAMERA & OCR LOGIC ---
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const cameraContainer = document.getElementById('cameraContainer');
+    const ocrStatus = document.getElementById('ocrStatus');
+
+    document.getElementById('startCamBtn').addEventListener('click', async () => {
+        cameraContainer.style.display = 'block';
+        ocrStatus.textContent = "Point camera at the account number...";
+        try {
+            videoStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            });
+            video.srcObject = videoStream;
+        } catch (err) {
+            ocrStatus.textContent = "❌ Camera access denied or not available.";
+            ocrStatus.style.color = 'red';
+        }
+    });
+
+    function stopCamera() {
+        if (typeof videoStream !== 'undefined' && videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+        }
+        cameraContainer.style.display = 'none';
+    }
+    document.getElementById('cancelCamBtn').addEventListener('click', stopCamera);
+
+    document.getElementById('captureBtn').addEventListener('click', async () => {
+        ocrStatus.textContent = "⏳ Analyzing image... Please hold still.";
+        ocrStatus.style.color = '#ff9800';
+        
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = canvas.toDataURL('image/png');
+
+        try {
+            const result = await Tesseract.recognize(imageData, 'eng');
+            const text = result.data.text;
+            const match = text.match(/\b\d{13}\b/); 
+            
+            if (match) {
+                const accountNumber = match[0];
+                document.getElementById('searchAcc').value = accountNumber;
+                stopCamera();
+                searchAccount(); 
+            } else {
+                ocrStatus.textContent = "❌ Could not detect a 13-digit account number. Try again.";
+                ocrStatus.style.color = '#dc3545';
+            }
+        } catch (error) {
+            ocrStatus.textContent = "❌ OCR Failed. Please try again.";
+            ocrStatus.style.color = '#dc3545';
+        }
+    });
+</script>
+
+</body>
+</html>
